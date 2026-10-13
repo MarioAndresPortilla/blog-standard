@@ -1,0 +1,56 @@
+# Release a version: Actions → Release → Run workflow → enter e.g. 1.1.0.
+#
+# Sites install a pinned tag straight from GitHub —
+#   "@seo-machine/blog-standard": "github:MarioAndresPortilla/blog-standard#v1.1.0"
+# — so the tag must contain the BUILT package. main stays source-only; each
+# release is one commit on top of main that adds dist/, and the tag points at it.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release (semver, without the "v"), e.g. 1.1.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Validate the version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not semver: $VERSION"; exit 1; }
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then echo "v$VERSION already exists"; exit 1; fi
+      - run: npm ci
+      - name: Set the version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Commit, tag and push
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # main records the version; the tag adds the built files on top.
+          if ! git diff --quiet package.json package-lock.json; then
+            git commit -m "v$VERSION" package.json package-lock.json
+            git push origin HEAD:main
+          fi
+          git add -f dist
+          git commit -m "release v$VERSION (built)"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
