@@ -64,13 +64,24 @@ function escapeAlt(alt: string): string {
   return alt.replace(/[[\]]/g, "");
 }
 
+/**
+ * A GFM table's divider row: every cell is hyphens with optional alignment
+ * colons (`---`, `:--`, `-:`, `:-:`), cells separated by pipes. One hyphen is
+ * enough — exactly what the renderer (marked) accepts, so the checker can't
+ * fail a table the page displays. At least one pipe is required, so a list
+ * item like "- item" never reads as one.
+ */
+const DIVIDER_SOURCE = String.raw`^\s*\|?(?:\s*:?-+:?\s*\|)+(?:\s*:?-+:?\s*)?$`;
+const TABLE_DIVIDER = new RegExp(DIVIDER_SOURCE);
+const TABLE_DIVIDER_GLOBAL = new RegExp(DIVIDER_SOURCE, "gm");
+
 /** Body words a reader actually reads: no markup, no image slots, no URLs. */
 export function countWords(body: string): number {
   const text = body
     .replace(FIGURE_LINE, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ") // images
     .replace(/\]\([^)]*\)/g, "]") // keep link text, drop the URL
-    .replace(/^\s*\|?\s*:?-{3,}.*$/gm, " ") // table rule rows
+    .replace(TABLE_DIVIDER_GLOBAL, " ") // table divider rows
     .replace(/[#>*_`|[\]-]/g, " ");
   return (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’]*/gu) ?? []).length;
 }
@@ -79,8 +90,7 @@ function countTables(body: string): number {
   const lines = body.split("\n");
   let n = 0;
   for (let i = 1; i < lines.length; i++) {
-    const isRule = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[i]);
-    if (isRule && /^\s*\|.*\|\s*$/.test(lines[i - 1])) n++;
+    if (TABLE_DIVIDER.test(lines[i]) && lines[i - 1].includes("|")) n++;
   }
   return n;
 }

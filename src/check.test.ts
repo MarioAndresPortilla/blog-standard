@@ -50,3 +50,20 @@ test("on disk: a missing image fails the build, a present one passes", () => {
 test("no posts folder yet is fine", () => {
   assert.equal(checkSite({ postsDir: "/nonexistent/blog" }).ok, true);
 });
+
+test("a table counts whatever divider style the renderer accepts", async () => {
+  const { checkStandard } = await import("./standard");
+  const base = `> **Key takeaways**\n> - one\n\n${words(800)}\n\n![a](/a.webp "c")\n\n![b](/b.webp "c")\n\n`;
+  for (const table of [
+    "| A | B |\n| --- | --- |\n| 1 | 2 |",
+    "| A | B |\n|:--|--:|\n| 1 | 2 |",
+    "| A | B |\n| :-: | - |\n| 1 | 2 |",
+    "A | B\n--|--\n1 | 2",
+  ]) {
+    assert.equal(checkStandard(base + table).tables, 1, `table not counted:\n${table}`);
+  }
+  // A list is not a table, and its words still count.
+  const listOnly = checkStandard(base + "- one item\n- another item");
+  assert.equal(listOnly.tables, 0);
+  assert.ok(listOnly.words >= 804, "list words are counted, not stripped as a divider");
+});
