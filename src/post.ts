@@ -30,6 +30,9 @@ export const frontMatterSchema = z
     imageAlt: z.string().optional(),
     coverSubject: z.string().optional(),
     type: z.string().optional(),
+    // The standard version a post declares it meets ("v1"). The SEO Machine
+    // writes it on every post; a declared post is always held to the standard.
+    standard: z.string().optional(),
   })
   .passthrough();
 

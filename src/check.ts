@@ -5,7 +5,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { checkStandard } from "./standard";
+import { checkStandard, STANDARD_VERSION } from "./standard";
 import { localImagePaths, parsePost, type Post } from "./post";
 
 export interface CheckOptions {
@@ -21,6 +21,14 @@ export interface CheckOptions {
   since?: string;
   /** Slugs exempt from the full standard regardless of date (legacy posts). */
   legacy?: string[];
+  /**
+   * Hold only posts that declare `standard:` in their front-matter to the full
+   * standard; every other post is checked for a valid file and working images
+   * only. For a site whose hand-written posts can't be told apart by date —
+   * instead of listing them in `legacy`. (A declared post is held in every
+   * mode: a post that says it meets the standard must.)
+   */
+  marked?: boolean;
 }
 
 export interface PostReport {
@@ -59,7 +67,12 @@ export function checkPosts(posts: { slug: string; raw: string }[], opts: Omit<Ch
       }
     }
 
-    const held = !legacy.has(slug) && (!opts.since || post.frontMatter.date >= opts.since);
+    const declared = post.frontMatter.standard;
+    if (declared !== undefined && declared !== STANDARD_VERSION) {
+      errors.push(`standard: "${declared}" isn't a version this package checks (${STANDARD_VERSION})`);
+    }
+    const byDate = !legacy.has(slug) && (!opts.since || post.frontMatter.date >= opts.since);
+    const held = declared !== undefined || (!opts.marked && byDate);
     if (held) errors.push(...checkStandard(post.markdown).problems);
 
     if (errors.length) failed.push({ slug, errors });

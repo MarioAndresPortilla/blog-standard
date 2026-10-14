@@ -42,6 +42,7 @@ tags: ["…", "…"]
 category: "…"               # optional, sites with categories
 image: /images/blog/<slug>/cover.webp   # cover, site-root path
 imageAlt: "…"
+standard: v1                # the version this post meets; CI holds it to it
 ```
 
 A site that already uses another field for its cover (`coverImage`, a slug→photo

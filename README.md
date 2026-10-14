@@ -25,6 +25,10 @@ npx --no-install blog-standard check content/blog --public public --since 2026-1
 `--since`: posts dated on or after this must meet the full standard (older
 posts are only checked for valid front-matter and working images).
 `--legacy a,b`: slugs exempt from the full standard.
+`--marked`: only posts whose front-matter declares `standard: v1` must meet the
+full standard (the SEO Machine marks every post it writes). Use it instead of
+`--since`/`--legacy` when a site's hand-written posts can't be told apart by
+date. A declared post is held to the standard in every mode.
 
 **Render a post** with the site's own image, link and styles:
 

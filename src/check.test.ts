@@ -67,3 +67,36 @@ test("a table counts whatever divider style the renderer accepts", async () => {
   assert.equal(listOnly.tables, 0);
   assert.ok(listOnly.words >= 804, "list words are counted, not stripped as a divider");
 });
+
+test("--marked: only posts declaring the standard are held to it, whatever their date", () => {
+  const r = checkPosts(
+    [
+      { slug: "machine-post", raw: fm("2026-10-13", "standard: v1\n") + "Too short." },
+      { slug: "hand-written-post", raw: fm("2026-11-02") + "Too short." },
+      { slug: "machine-good-post", raw: fm("2026-10-13", "standard: v1\n") + standardBody },
+    ],
+    { since: "2026-10-07", marked: true },
+  );
+  assert.deepEqual(r.failed.map((f) => f.slug), ["machine-post"]);
+});
+
+test("--marked still checks every post parses: a broken unmarked post fails", () => {
+  const r = checkPosts([{ slug: "hand-written-post", raw: "---\ntitle: T\n---\nNo date or summary." }], { marked: true });
+  assert.equal(r.ok, false);
+});
+
+test("a declared post is held in every mode, even when listed as legacy or dated before --since", () => {
+  const r = checkPosts(
+    [
+      { slug: "listed", raw: fm("2026-10-13", "standard: v1\n") + "Too short." },
+      { slug: "early", raw: fm("2026-01-01", "standard: v1\n") + "Too short." },
+    ],
+    { since: "2026-10-07", legacy: ["listed"] },
+  );
+  assert.deepEqual(r.failed.map((f) => f.slug), ["listed", "early"]);
+});
+
+test("a standard version the package doesn't know is reported", () => {
+  const r = checkPosts([{ slug: "future", raw: fm("2026-10-13", "standard: v9\n") + standardBody }]);
+  assert.match(r.failed[0]?.errors.join(" ") ?? "", /v9/);
+});
