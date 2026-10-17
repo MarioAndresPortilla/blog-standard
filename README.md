@@ -30,6 +30,22 @@ full standard (the SEO Machine marks every post it writes). Use it instead of
 `--since`/`--legacy` when a site's hand-written posts can't be told apart by
 date. A declared post is held to the standard in every mode.
 
+**Read posts from the hub** (sites whose posts are published in the SEO
+Machine rather than committed to the repo). Never throws: if the hub can't be
+reached, the site keeps its own files and, in Next.js, its last fetched copy.
+
+```ts
+import { hubPosts, hubPost, mergePosts } from "@seo-machine/blog-standard";
+
+const site = "360-radiance"; // this site's id in the hub
+const posts = mergePosts(await loadPostFiles(), await hubPosts({ site })); // newest first; hub wins a shared slug
+const post = (await hubPost({ site, slug })) ?? (await loadPostFile(slug));
+```
+
+Fetches are cached by Next.js for 5 minutes (`revalidate`) under the tag
+`seo-hub:<site>`. Hub pictures are served from Vercel Blob, so allow
+`*.public.blob.vercel-storage.com` in `images.remotePatterns`.
+
 **Render a post** with the site's own image, link and styles:
 
 ```tsx
