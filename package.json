@@ -1,6 +1,6 @@
 {
   "name": "@seo-machine/blog-standard",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Blog standard v1: the post format, its checks, and one React renderer, shared by the SEO Machine and every client site.",
   "license": "UNLICENSED",
   "type": "module",
