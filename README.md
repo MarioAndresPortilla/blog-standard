@@ -46,6 +46,20 @@ Fetches are cached by Next.js for 5 minutes (`revalidate`) under the tag
 `seo-hub:<site>`. Hub pictures are served from Vercel Blob, so allow
 `*.public.blob.vercel-storage.com` in `images.remotePatterns`.
 
+**Site analytics** (PostHog: page views, clicks, heatmaps), the same privacy
+rules on every site. In the root layout:
+
+```tsx
+import { SiteAnalytics } from "@seo-machine/blog-standard/analytics";
+
+<SiteAnalytics apiKey={process.env.NEXT_PUBLIC_POSTHOG_KEY} sensitive /* health site */ />
+```
+
+Form inputs are never captured. A `sensitive` site never records sessions,
+captures no element text or attributes, stores nothing in cookies, and doesn't
+track booking, contact or intake pages at all. Elsewhere, session recording
+only with `replay`, inputs masked. Do Not Track is honoured.
+
 **Render a post** with the site's own image, link and styles:
 
 ```tsx

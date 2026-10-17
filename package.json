@@ -14,6 +14,11 @@
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js",
       "require": "./dist/react.cjs"
+    },
+    "./analytics": {
+      "types": "./dist/analytics.d.ts",
+      "import": "./dist/analytics.js",
+      "require": "./dist/analytics.cjs"
     }
   },
   "bin": {
@@ -39,6 +44,7 @@
   "dependencies": {
     "gray-matter": "^4.0.3",
     "marked": "^18.0.5",
+    "posthog-js": "^1.438.12",
     "zod": "^4.0.0"
   },
   "keywords": [
@@ -57,13 +63,13 @@
   },
   "homepage": "https://github.com/MarioAndresPortilla/blog-standard#readme",
   "devDependencies": {
-    "tsup": "^8.5.1",
-    "typescript": "^5.9.3",
-    "tsx": "^4.22.4",
     "@types/node": "^20.19.41",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "tsup": "^8.5.1",
+    "tsx": "^4.22.4",
+    "typescript": "^5.9.3"
   }
 }
