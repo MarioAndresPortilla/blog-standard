@@ -45,10 +45,10 @@ test("one post by slug; not in the hub is null", async () => {
   assert.equal(await hubPost({ site: "s", slug: "other", hub: HUB, fetch }), null);
 });
 
-test("files and hub posts merge newest first; the hub's copy wins a shared slug", () => {
+test("files and hub posts merge newest first; the site's own file wins a shared slug", () => {
   const local = [post("old-file", "2026-01-01"), post("shared", "2026-05-01", "file title")] as Post[];
   const hub = [post("shared", "2026-05-01", "hub title"), post("new-hub", "2026-10-01")] as Post[];
   const merged = mergePosts(local, hub);
   assert.deepEqual(merged.map((p) => p.slug), ["new-hub", "shared", "old-file"]);
-  assert.equal(merged[1].frontMatter.title, "hub title");
+  assert.equal(merged[1].frontMatter.title, "file title", "the file keeps the site's own front-matter");
 });

@@ -61,12 +61,17 @@ export async function hubPost(opts: HubOptions & { slug: string }): Promise<Post
 }
 
 /**
- * A site's own post files and its hub posts as one list, newest first. The
- * hub's copy wins when both have a slug — it's the one being edited.
+ * A site's own post files and its hub posts as one list, newest first.
+ *
+ * The site's FILE wins a shared slug: the hub's copy of a post that is also a
+ * file was imported from it, and keeps only the shared fields — a site's own
+ * front-matter (custom keys, a cover map) lives in the file. The hub adds the
+ * posts the site doesn't have: what the machine and the client publish there.
+ * To hand an existing post over to the hub, delete its file.
  */
 export function mergePosts(local: Post[], hub: Post[]): Post[] {
   const bySlug = new Map<string, Post>();
-  for (const p of local) bySlug.set(p.slug, p);
   for (const p of hub) bySlug.set(p.slug, p);
+  for (const p of local) bySlug.set(p.slug, p);
   return [...bySlug.values()].sort((a, b) => b.frontMatter.date.localeCompare(a.frontMatter.date));
 }

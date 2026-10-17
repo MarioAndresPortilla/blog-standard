@@ -38,8 +38,8 @@ reached, the site keeps its own files and, in Next.js, its last fetched copy.
 import { hubPosts, hubPost, mergePosts } from "@seo-machine/blog-standard";
 
 const site = "360-radiance"; // this site's id in the hub
-const posts = mergePosts(await loadPostFiles(), await hubPosts({ site })); // newest first; hub wins a shared slug
-const post = (await hubPost({ site, slug })) ?? (await loadPostFile(slug));
+const posts = mergePosts(await loadPostFiles(), await hubPosts({ site })); // newest first; the site's file wins a shared slug
+const post = (await loadPostFile(slug)) ?? (await hubPost({ site, slug }));
 ```
 
 Fetches are cached by Next.js for 5 minutes (`revalidate`) under the tag
