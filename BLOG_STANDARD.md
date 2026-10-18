@@ -15,17 +15,43 @@ does.
 
 | Element | Rule |
 |---|---|
-| Length | 800–1,200 words of body text, about a 4–6 minute read. Never more than 1,400 or under 700. |
+| Length | 800–1,200 words of body text, about a 4–6 minute read and never more than 7. Never more than 1,400 words or under 700. |
 | Cover image | One cover, used as the page hero and the social share image. Alt text required. |
 | Inline visuals | 2–3 illustrations, sketches, diagrams or photos, roughly one every 300–400 words. Each has alt text and a one-line caption. |
-| Table | At least one: a comparison, checklist, timeline, or "what affects the cost" grid. |
+| Table or chart | At least one table: a comparison, checklist, timeline, or "what affects the cost" grid. A chart or diagram is welcome as one of the inline visuals. Never a wall of text. |
 | Key takeaways | A callout near the top with 3–4 bullets, so a skimmer gets the point in ten seconds. |
 | Paragraphs | Three sentences at most. A descriptive `##` heading every 150–250 words. Lists where they help. |
 | Honesty | No invented statistics, prices, dates or credentials. No words, logos or numbers baked into images. |
 
+Motion where it helps: figures, tables and callouts reveal on scroll, and a
+looping clip (`.mp4`/`.webm`) can stand in for a still when movement explains
+something better.
+
 Images are generated with the OpenAI Images API when there is no real photo:
 `gpt-image-2.5-flare`, 1536×1024, WebP. Each brand has its own illustration
 style so a site's posts look like one family.
+
+## One subject, one post
+
+A site never carries two posts on the same subject — the same main search
+query — however differently they are titled or angled. Two pages on one search
+compete with each other, and a duplicate that is already live is a bug.
+
+- **Check before writing, not after.** Before a post is drafted, its topic is
+  checked against everything the site has or is about to have: the live
+  sitemap (it lists posts rendered from code too), the repo's posts folder,
+  open PRs, and drafts waiting in the hub's library. If the subject is
+  covered, improve the existing post instead of writing a new one. The SEO
+  Machine runs this check when it plans a week, again right before it writes,
+  and again on the finished draft before it opens a PR — and it writes
+  nothing when the check can't run.
+- **Live duplicates are folded.** Keep the stronger post (more Search Console
+  clicks, then impressions, then the better post), redirect the other's
+  address permanently (308, one hop) to it, and drop it from the sitemap.
+- **One post per date.** No two posts on a site share a publish date. A post
+  whose day is taken waits for the next free day; dates are never invented or
+  back-dated to make room. (Dated news editions, like a market brief published
+  three times a day, are not articles and are exempt.)
 
 ## Markdown contract
 
