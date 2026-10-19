@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { analyticsConfig, mayLoadOn } from "./analytics";
+import { analyticsConfig, mayLoadOn, withoutQuery } from "./analytics";
 
 const ev = (url: string) => ({ properties: { $current_url: url } });
 
@@ -48,4 +48,45 @@ test("given the page's path, PostHog isn't even loaded on a page it may not trac
   assert.equal(mayLoadOn({ apiKey: "k", excludePaths: [/^\/deposit/] }, "/deposit/success"), false);
   assert.equal(mayLoadOn(health, undefined), true, "no path known: load, and drop excluded pages' events instead");
   assert.equal(mayLoadOn({ sensitive: true }, "/blog"), false, "no key: never");
+});
+
+test("heatmap points from an excluded page never leave, even batched onto a later page", () => {
+  const c = analyticsConfig({ apiKey: "k", excludePaths: [/^\/preferences/, /^\/login/] });
+  const out = c.before_send({
+    properties: {
+      $current_url: "https://site.com/",
+      $heatmap_data: {
+        "https://site.com/preferences?token=eyJlbWFpbCI6ImFAYi5jb20ifQ": [{ x: 1 }],
+        "https://site.com/login": [{ x: 2 }],
+        "https://site.com/blog/post?ref=x": [{ x: 3 }],
+      },
+    },
+  }) as { properties: { $heatmap_data: Record<string, unknown> } };
+  assert.deepEqual(Object.keys(out.properties.$heatmap_data), ["https://site.com/blog/post"]);
+});
+
+test("an excluded page never rides along as an entry page or referrer; query strings are stripped everywhere", () => {
+  const c = analyticsConfig({ apiKey: "k", excludePaths: [/^\/preferences/] });
+  const out = c.before_send({
+    properties: {
+      $current_url: "https://site.com/pricing?coupon=SECRET&utm_source=news",
+      $session_entry_url: "https://site.com/preferences?token=abc",
+      $referrer: "https://site.com/preferences?token=abc",
+      $initial_referrer: "https://google.com/search?q=private",
+      $referring_domain: "google.com",
+      $set_once: { $initial_current_url: "https://site.com/preferences?token=abc" },
+    },
+  }) as { properties: Record<string, any> };
+  assert.equal(out.properties.$current_url, "https://site.com/pricing?utm_source=news", "only campaign tags survive");
+  assert.equal(out.properties.$session_entry_url, "(excluded page)");
+  assert.equal(out.properties.$referrer, "(excluded page)");
+  assert.equal(out.properties.$initial_referrer, "https://google.com/search");
+  assert.equal(out.properties.$referring_domain, "google.com", "a domain isn't a URL");
+  assert.equal(out.properties.$set_once.$initial_current_url, "(excluded page)");
+});
+
+test("withoutQuery keeps campaign tags only", () => {
+  assert.equal(withoutQuery("https://a.com/p?utm_campaign=x&token=y"), "https://a.com/p?utm_campaign=x");
+  assert.equal(withoutQuery("https://a.com/p?email=a@b.com"), "https://a.com/p");
+  assert.equal(withoutQuery("/p?x=1"), "/p");
 });

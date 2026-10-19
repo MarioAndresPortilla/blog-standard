@@ -4,7 +4,9 @@
 // recording anyone.
 //
 // Privacy rules (the plan's "Health and finance tenants"):
-//   - Form inputs are never captured, anywhere.
+//   - Form inputs are never captured, anywhere; addresses lose their query
+//     strings (campaign tags kept), and an excluded page's address never
+//     travels on a later event (referrer, entry page, batched heatmap points).
 //   - A sensitive (health) site: no session recording, no element text or
 //     attributes, nothing kept in cookies or storage, and booking / contact /
 //     intake pages are not tracked at all.
@@ -48,19 +50,68 @@ export function mayLoadOn(opts: AnalyticsOptions, path: string | undefined): boo
   return !exclusions(opts).some((re) => re.test(path));
 }
 
+type Props = Record<string, unknown>;
+
+/** A URL's path, whether it's a full URL or already a path. */
+function pathOf(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url.split(/[?#]/)[0];
+  }
+}
+
+/**
+ * A URL with its query string removed — except campaign tags (utm_*), which
+ * are the only parameters analytics needs. Tokens, emails, session ids and
+ * amounts travel in query strings (`/preferences?token=…`,
+ * `/invoice?email=…`, `/payment/success?session_id=…`).
+ */
+export function withoutQuery(url: string): string {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return url.split("?")[0];
+  }
+  const keep = new URLSearchParams();
+  for (const [k, v] of u.searchParams) if (/^utm_/i.test(k)) keep.append(k, v);
+  u.search = keep.toString();
+  return u.toString();
+}
+
 /** The PostHog settings for a site — pure, so the privacy rules are testable. */
 export function analyticsConfig(opts: AnalyticsOptions) {
   const exclude = exclusions(opts);
-  const excluded = (url: unknown) => {
-    if (typeof url !== "string") return false;
-    let path = url;
-    try {
-      path = new URL(url).pathname;
-    } catch {
-      /* already a path */
+  const excluded = (url: unknown) => typeof url === "string" && exclude.some((re) => re.test(pathOf(url)));
+
+  // Every URL-like property PostHog attaches — the page, the referrer, where
+  // the session started, the person's first page — is cleaned: an excluded
+  // page's address is blanked, every other address loses its query string.
+  const isUrlKey = (k: string) => /url|referrer/i.test(k) && !/domain/i.test(k);
+  const clean = (props: Props | undefined): Props | undefined => {
+    if (!props || typeof props !== "object") return props;
+    const out: Props = {};
+    for (const [k, v] of Object.entries(props)) {
+      if (typeof v === "string" && isUrlKey(k) && /^(https?:\/\/|\/)/.test(v)) {
+        out[k] = excluded(v) ? "(excluded page)" : withoutQuery(v);
+      } else if ((k === "$set" || k === "$set_once") && v && typeof v === "object") {
+        out[k] = clean(v as Props);
+      } else {
+        out[k] = v;
+      }
     }
-    return exclude.some((re) => re.test(path));
+    // Heatmap points are batched by the page they happened on and can leave
+    // from a later page: drop an excluded page's points, unquery the rest.
+    const heat = out.$heatmap_data;
+    if (heat && typeof heat === "object") {
+      const kept: Props = {};
+      for (const [url, points] of Object.entries(heat as Props)) if (!excluded(url)) kept[withoutQuery(url)] = points;
+      out.$heatmap_data = kept;
+    }
+    return out;
   };
+
   const replay = !!opts.replay && !opts.sensitive;
   return {
     api_host: opts.host ?? "https://us.i.posthog.com",
@@ -75,9 +126,12 @@ export function analyticsConfig(opts: AnalyticsOptions) {
     mask_all_text: !!opts.sensitive,
     mask_all_element_attributes: !!opts.sensitive,
     ...(opts.sensitive ? { persistence: "memory" as const } : {}),
-    // Anything from an excluded page — a page view, a click, a heatmap point —
-    // is dropped before it leaves the browser.
-    before_send: (event: Event) => (excluded(event?.properties?.$current_url) ? null : event),
+    // An event from an excluded page is dropped before it leaves the browser;
+    // every other event is cleaned of excluded addresses and query strings.
+    before_send: (event: Event) => {
+      if (!event || excluded(event.properties?.$current_url)) return null;
+      return { ...event, properties: clean(event.properties) };
+    },
   };
 }
 
