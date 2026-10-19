@@ -85,8 +85,36 @@ test("an excluded page never rides along as an entry page or referrer; query str
   assert.equal(out.properties.$set_once.$initial_current_url, "(excluded page)");
 });
 
-test("withoutQuery keeps campaign tags only", () => {
+test("the person's first page never leaves: posthog-js sends $set / $set_once beside properties, not inside", () => {
+  const c = analyticsConfig({ apiKey: "k", excludePaths: [/^\/preferences/] });
+  const out = c.before_send({
+    properties: { $current_url: "https://site.com/", $initial_pathname: "/preferences", $prev_pageview_pathname: "/preferences" },
+    $set: { $current_url: "https://site.com/pricing?coupon=SECRET" },
+    $set_once: {
+      $initial_current_url: "https://site.com/preferences?token=eyJlbWFpbCI6ImFAYi5jb20ifQ",
+      $initial_pathname: "/preferences",
+      $initial_referrer: "https://mail.example.com/inbox?msg=123",
+      $initial_referring_domain: "mail.example.com",
+      $current_url: "https://site.com/blog/post?ref=abc#access_token=xyz",
+    },
+  }) as Record<string, any>;
+  assert.equal(out.$set_once.$initial_current_url, "(excluded page)");
+  assert.equal(out.$set_once.$initial_pathname, "(excluded page)");
+  assert.equal(out.$set_once.$initial_referrer, "https://mail.example.com/inbox");
+  assert.equal(out.$set_once.$initial_referring_domain, "mail.example.com");
+  assert.equal(out.$set_once.$current_url, "https://site.com/blog/post");
+  assert.equal(out.$set.$current_url, "https://site.com/pricing");
+  assert.equal(out.properties.$initial_pathname, "(excluded page)");
+  assert.equal(out.properties.$prev_pageview_pathname, "(excluded page)");
+  assert.equal("$set" in c.before_send(ev("https://site.com/"))!, false, "no person properties added where there were none");
+  assert.equal(c.disable_capture_url_hashes, true, "PostHog drops #fragments where before_send can't reach");
+});
+
+test("withoutQuery keeps campaign tags only, and drops the #fragment", () => {
   assert.equal(withoutQuery("https://a.com/p?utm_campaign=x&token=y"), "https://a.com/p?utm_campaign=x");
   assert.equal(withoutQuery("https://a.com/p?email=a@b.com"), "https://a.com/p");
   assert.equal(withoutQuery("/p?x=1"), "/p");
+  assert.equal(withoutQuery("https://a.com/auth/callback#access_token=abc&refresh_token=def"), "https://a.com/auth/callback");
+  assert.equal(withoutQuery("https://a.com/p?utm_source=x#token=y"), "https://a.com/p?utm_source=x");
+  assert.equal(withoutQuery("/p#token=y"), "/p");
 });

@@ -55,7 +55,7 @@ import { SiteAnalytics } from "@seo-machine/blog-standard/analytics";
 <SiteAnalytics apiKey={process.env.NEXT_PUBLIC_POSTHOG_KEY} sensitive /* health site */ path={usePathname()} />
 ```
 
-Form inputs are never captured, and addresses lose their query strings (only `utm_*` campaign tags are kept) — tokens, emails and session ids travel there. An excluded page's address never rides along on a later event (as a referrer, an entry page, or batched heatmap points). A `sensitive` site never records sessions,
+Form inputs are never captured, and addresses lose their query strings (only `utm_*` campaign tags are kept) and `#fragments` — tokens, emails and session ids travel there. An excluded page's address never rides along on a later event (as a referrer, an entry page, the person's first page, or batched heatmap points). A `sensitive` site never records sessions,
 captures no element text or attributes, stores nothing in cookies, and doesn't
 track booking, contact or intake pages at all — pass `path` (Next's
 `usePathname()`, from a small client wrapper) and PostHog isn't even loaded

@@ -5,8 +5,9 @@
 //
 // Privacy rules (the plan's "Health and finance tenants"):
 //   - Form inputs are never captured, anywhere; addresses lose their query
-//     strings (campaign tags kept), and an excluded page's address never
-//     travels on a later event (referrer, entry page, batched heatmap points).
+//     strings (campaign tags kept) and #fragments, and an excluded page's
+//     address never travels on a later event (referrer, entry page, the
+//     person's first page, batched heatmap points).
 //   - A sensitive (health) site: no session recording, no element text or
 //     attributes, nothing kept in cookies or storage, and booking / contact /
 //     intake pages are not tracked at all.
@@ -39,7 +40,9 @@ export interface AnalyticsOptions {
 export const SENSITIVE_PATHS =
   /(^|\/)(book|booking|bookings|appointment|appointments|schedule|contact|contact-us|intake|consult|consultation|consultations|checkout|account|portal|patient|patients|forms?)(\/|$)/i;
 
-type Event = { properties?: Record<string, unknown> } | null;
+// posthog-js puts person properties beside `properties`, not inside them:
+// `$set_once` carries the person's first page and the session's entry page.
+type Event = { properties?: Props; $set?: Props; $set_once?: Props } | null;
 
 const exclusions = (opts: AnalyticsOptions) => [...(opts.excludePaths ?? []), ...(opts.sensitive ? [SENSITIVE_PATHS] : [])];
 
@@ -65,18 +68,20 @@ function pathOf(url: string): string {
  * A URL with its query string removed — except campaign tags (utm_*), which
  * are the only parameters analytics needs. Tokens, emails, session ids and
  * amounts travel in query strings (`/preferences?token=…`,
- * `/invoice?email=…`, `/payment/success?session_id=…`).
+ * `/invoice?email=…`, `/payment/success?session_id=…`), and sign-in links
+ * put tokens in the #fragment (`/auth/callback#access_token=…`), so that goes too.
  */
 export function withoutQuery(url: string): string {
   let u: URL;
   try {
     u = new URL(url);
   } catch {
-    return url.split("?")[0];
+    return url.split(/[?#]/)[0];
   }
   const keep = new URLSearchParams();
   for (const [k, v] of u.searchParams) if (/^utm_/i.test(k)) keep.append(k, v);
   u.search = keep.toString();
+  u.hash = "";
   return u.toString();
 }
 
@@ -88,7 +93,7 @@ export function analyticsConfig(opts: AnalyticsOptions) {
   // Every URL-like property PostHog attaches — the page, the referrer, where
   // the session started, the person's first page — is cleaned: an excluded
   // page's address is blanked, every other address loses its query string.
-  const isUrlKey = (k: string) => /url|referrer/i.test(k) && !/domain/i.test(k);
+  const isUrlKey = (k: string) => /url|referrer|pathname/i.test(k) && !/domain/i.test(k);
   const clean = (props: Props | undefined): Props | undefined => {
     if (!props || typeof props !== "object") return props;
     const out: Props = {};
@@ -121,6 +126,8 @@ export function analyticsConfig(opts: AnalyticsOptions) {
     autocapture: true,
     capture_heatmaps: true,
     respect_dnt: true,
+    // Also strips #fragments where before_send can't reach (link hrefs in clicks, replay).
+    disable_capture_url_hashes: true,
     disable_session_recording: !replay,
     session_recording: { maskAllInputs: true },
     mask_all_text: !!opts.sensitive,
@@ -130,7 +137,10 @@ export function analyticsConfig(opts: AnalyticsOptions) {
     // every other event is cleaned of excluded addresses and query strings.
     before_send: (event: Event) => {
       if (!event || excluded(event.properties?.$current_url)) return null;
-      return { ...event, properties: clean(event.properties) };
+      const out = { ...event, properties: clean(event.properties) };
+      if (event.$set) out.$set = clean(event.$set);
+      if (event.$set_once) out.$set_once = clean(event.$set_once);
+      return out;
     },
   };
 }
