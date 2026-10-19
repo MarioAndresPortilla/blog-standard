@@ -24,6 +24,13 @@ export interface AnalyticsOptions {
   replay?: boolean;
   /** Pages never tracked, by path (a sensitive site always adds booking/contact/intake pages). */
   excludePaths?: RegExp[];
+  /**
+   * The current page's path (e.g. Next's `usePathname()`). When given,
+   * PostHog isn't even loaded until the visitor reaches a page that may be
+   * tracked — on an excluded page it isn't contacted at all. Without it,
+   * PostHog loads at once and events from excluded pages are dropped.
+   */
+  path?: string;
 }
 
 /** Pages a health site never tracks: anywhere a visitor might type about themselves. */
@@ -32,9 +39,18 @@ export const SENSITIVE_PATHS =
 
 type Event = { properties?: Record<string, unknown> } | null;
 
+const exclusions = (opts: AnalyticsOptions) => [...(opts.excludePaths ?? []), ...(opts.sensitive ? [SENSITIVE_PATHS] : [])];
+
+/** May PostHog load on this page? Only on a page it may track. No path known = yes. */
+export function mayLoadOn(opts: AnalyticsOptions, path: string | undefined): boolean {
+  if (!opts.apiKey) return false;
+  if (path === undefined) return true;
+  return !exclusions(opts).some((re) => re.test(path));
+}
+
 /** The PostHog settings for a site — pure, so the privacy rules are testable. */
 export function analyticsConfig(opts: AnalyticsOptions) {
-  const exclude = [...(opts.excludePaths ?? []), ...(opts.sensitive ? [SENSITIVE_PATHS] : [])];
+  const exclude = exclusions(opts);
   const excluded = (url: unknown) => {
     if (typeof url !== "string") return false;
     let path = url;
@@ -70,10 +86,13 @@ export function analyticsConfig(opts: AnalyticsOptions) {
  * Loads PostHog only when there's a key, after the page is interactive.
  */
 export function SiteAnalytics(opts: AnalyticsOptions): null {
-  const { apiKey, host, sensitive, replay } = opts;
+  const { apiKey, host, sensitive, replay, path } = opts;
   const paths = (opts.excludePaths ?? []).map(String).join("|");
+  // Re-runs on navigation when the site passes `path`: PostHog loads the
+  // first time the visitor is on a page it may track, then stays loaded.
+  const allowed = mayLoadOn(opts, path);
   useEffect(() => {
-    if (!apiKey) return;
+    if (!apiKey || !allowed) return;
     let cancelled = false;
     import("posthog-js").then(({ default: posthog }) => {
       if (!cancelled && !posthog.__loaded) posthog.init(apiKey, analyticsConfig(opts) as never);
@@ -82,6 +101,6 @@ export function SiteAnalytics(opts: AnalyticsOptions): null {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, host, sensitive, replay, paths]);
+  }, [apiKey, host, sensitive, replay, paths, allowed]);
   return null;
 }

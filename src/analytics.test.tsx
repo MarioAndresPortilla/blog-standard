@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { analyticsConfig } from "./analytics";
+import { analyticsConfig, mayLoadOn } from "./analytics";
 
 const ev = (url: string) => ({ properties: { $current_url: url } });
 
@@ -38,4 +38,14 @@ test("a site can exclude its own pages too", () => {
   const c = analyticsConfig({ apiKey: "k", excludePaths: [/^\/admin/] });
   assert.equal(c.before_send(ev("https://site.com/admin/users")), null);
   assert.notEqual(c.before_send(ev("https://site.com/")), null);
+});
+
+test("given the page's path, PostHog isn't even loaded on a page it may not track", () => {
+  const health = { apiKey: "k", sensitive: true };
+  assert.equal(mayLoadOn(health, "/contact"), false, "a health site's contact page never contacts PostHog");
+  assert.equal(mayLoadOn(health, "/es/booking"), false);
+  assert.equal(mayLoadOn(health, "/blog/retinol-guide"), true);
+  assert.equal(mayLoadOn({ apiKey: "k", excludePaths: [/^\/deposit/] }, "/deposit/success"), false);
+  assert.equal(mayLoadOn(health, undefined), true, "no path known: load, and drop excluded pages' events instead");
+  assert.equal(mayLoadOn({ sensitive: true }, "/blog"), false, "no key: never");
 });

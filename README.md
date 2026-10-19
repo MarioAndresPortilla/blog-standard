@@ -52,12 +52,14 @@ rules on every site. In the root layout:
 ```tsx
 import { SiteAnalytics } from "@seo-machine/blog-standard/analytics";
 
-<SiteAnalytics apiKey={process.env.NEXT_PUBLIC_POSTHOG_KEY} sensitive /* health site */ />
+<SiteAnalytics apiKey={process.env.NEXT_PUBLIC_POSTHOG_KEY} sensitive /* health site */ path={usePathname()} />
 ```
 
 Form inputs are never captured. A `sensitive` site never records sessions,
 captures no element text or attributes, stores nothing in cookies, and doesn't
-track booking, contact or intake pages at all. Elsewhere, session recording
+track booking, contact or intake pages at all — pass `path` (Next's
+`usePathname()`, from a small client wrapper) and PostHog isn't even loaded
+on those pages. Elsewhere, session recording
 only with `replay`, inputs masked. Do Not Track is honoured.
 
 **Render a post** with the site's own image, link and styles:
