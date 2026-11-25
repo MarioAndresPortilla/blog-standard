@@ -11,9 +11,16 @@
 //                Video, Reveal (a scroll-in animation wrapper)
 //   theme      — a class name per element (Tailwind or anything else)
 // With neither, it renders plain, accessible HTML.
+//
+// Give it `cite` (the post's URL, title and site) and every figure offers
+// embed code, every table a source line, and the post ends with a "Cite or
+// link to this article" box — each snippet links back to the post (cite.ts).
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type CSSProperties, type ReactNode } from "react";
 import { marked, type Token, type Tokens } from "marked";
+import { articleLink, citation, citeLabels, figureId, imageEmbed, tableCredit, tableId, type PostCite } from "./cite";
+
+export type { CiteLabels, PostCite } from "./cite";
 
 /** The standard generates every figure at 1536×1024, so that's the box reserved before it loads. */
 export const FIGURE_WIDTH = 1536;
@@ -75,6 +82,13 @@ export interface PostBodyTheme {
   td?: string;
   /** The first cell of each row, usually the row's label. Falls back to `td`. */
   tdFirst?: string;
+  /** With `cite`: the collapsed snippet under a figure or table, and the article box's. */
+  embed?: string;
+  embedSummary?: string;
+  embedCode?: string;
+  /** With `cite`: the "Cite or link to this article" box after the post, and its row labels. */
+  cite?: string;
+  citeLabel?: string;
 }
 
 export interface PostBodyProps {
@@ -83,6 +97,13 @@ export interface PostBodyProps {
   theme?: PostBodyTheme;
   /** `sizes` for figure images, e.g. "(max-width: 768px) 100vw, 620px". */
   figureSizes?: string;
+  /**
+   * The post's canonical URL, title and site name. Turns on embed code under
+   * each figure, a source line under each table, and the cite box at the end.
+   */
+  cite?: PostCite;
+  /** With `cite`: false leaves out the box at the end (the site places <CiteThis> itself). Default true. */
+  citeBox?: boolean;
 }
 
 // marked leaves entities like `&amp;` in text for its own HTML output; React would print them literally.
@@ -125,6 +146,9 @@ interface Ctx {
   c: Required<PostBodyComponents>;
   t: PostBodyTheme;
   sizes?: string;
+  cite?: PostCite;
+  /** Each figure paragraph's and table's number, in reading order. */
+  nums: WeakMap<Token, number>;
 }
 
 function inline(tokens: Token[] | undefined, x: Ctx): ReactNode {
@@ -176,29 +200,89 @@ function figureImage(tokens: Token[]): Tokens.Image | null {
   return content.length === 1 && content[0].type === "image" ? (content[0] as Tokens.Image) : null;
 }
 
-function Figure({ image, x }: { image: Tokens.Image; x: Ctx }) {
+/** Numbers every figure and table, in reading order, callouts and lists included. */
+function numberBlocks(tokens: Token[], nums: WeakMap<Token, number>, count = { figure: 0, table: 0 }): WeakMap<Token, number> {
+  for (const token of tokens) {
+    if (token.type === "paragraph" && figureImage(token.tokens ?? [])) nums.set(token, ++count.figure);
+    else if (token.type === "table") nums.set(token, ++count.table);
+    else if (token.type === "blockquote") numberBlocks(token.tokens ?? [], nums, count);
+    else if (token.type === "list") for (const item of token.items) numberBlocks(item.tokens ?? [], nums, count);
+  }
+  return nums;
+}
+
+// Long one-line HTML wraps anywhere, and one click selects all of it — copying needs no script.
+const SNIPPET: CSSProperties = { whiteSpace: "pre-wrap", wordBreak: "break-all", userSelect: "all" };
+
+function Snippet({ code, t }: { code: string; t: PostBodyTheme }) {
+  return (
+    <pre className={t.embedCode} style={SNIPPET}>
+      <code>{code}</code>
+    </pre>
+  );
+}
+
+function Embed({ label, code, t }: { label: string; code: string; t: PostBodyTheme }) {
+  return (
+    <details className={t.embed}>
+      <summary className={t.embedSummary}>{label}</summary>
+      <Snippet code={code} t={t} />
+    </details>
+  );
+}
+
+/** The "Cite or link to this article" box: the post as an HTML link and as a citation. */
+export function CiteThis({ cite, theme }: { cite: PostCite; theme?: PostBodyTheme }) {
+  const t = theme ?? {};
+  const labels = citeLabels(cite);
+  return (
+    <aside aria-label={labels.article} className={t.cite}>
+      <details className={t.embed}>
+        <summary className={t.embedSummary}>{labels.article}</summary>
+        <p className={t.citeLabel}>{labels.link}</p>
+        <Snippet code={articleLink(cite)} t={t} />
+        <p className={t.citeLabel}>{labels.citation}</p>
+        <Snippet code={citation(cite)} t={t} />
+      </details>
+    </aside>
+  );
+}
+
+function Figure({ image, n, x }: { image: Tokens.Image; n?: number; x: Ctx }) {
   const alt = decodeEntities(image.text);
   const caption = image.title ? decodeEntities(image.title.trim()) : "";
+  const video = VIDEO.test(image.href);
+  // A clip is offered as a link only through the article box; embed code is for still images.
+  const embed = x.cite && n && !video ? imageEmbed(x.cite, { src: image.href, alt, n }) : null;
   return (
     <x.c.Reveal>
-      <figure className={x.t.figure}>
-        {VIDEO.test(image.href) ? (
+      <figure id={x.cite && n ? figureId(n) : undefined} className={x.t.figure}>
+        {video ? (
           <x.c.Video src={image.href} label={alt} width={FIGURE_WIDTH} height={FIGURE_HEIGHT} className={x.t.media} />
         ) : (
           <x.c.Image src={image.href} alt={alt} width={FIGURE_WIDTH} height={FIGURE_HEIGHT} sizes={x.sizes} className={x.t.media} />
         )}
         {caption && <figcaption className={x.t.figcaption}>{caption}</figcaption>}
       </figure>
+      {embed && x.cite && <Embed label={citeLabels(x.cite).image} code={embed} t={x.t} />}
     </x.c.Reveal>
   );
 }
 
 function Table({ token, x }: { token: Tokens.Table; x: Ctx }) {
   const align = (cell: Tokens.TableCell) => (cell.align ? { textAlign: cell.align } : undefined);
+  const n = x.nums.get(token);
   return (
     <x.c.Reveal>
       {/* Scrolls sideways on a phone instead of squeezing columns; focusable for keyboard users. */}
-      <div tabIndex={0} role="region" aria-label="Table" className={x.t.tableWrap} style={{ overflowX: "auto" }}>
+      <div
+        id={x.cite && n ? tableId(n) : undefined}
+        tabIndex={0}
+        role="region"
+        aria-label="Table"
+        className={x.t.tableWrap}
+        style={{ overflowX: "auto" }}
+      >
         <table className={x.t.table}>
           <thead className={x.t.thead}>
             <tr>
@@ -222,6 +306,7 @@ function Table({ token, x }: { token: Tokens.Table; x: Ctx }) {
           </tbody>
         </table>
       </div>
+      {x.cite && n && <Embed label={citeLabels(x.cite).table} code={tableCredit(x.cite, n)} t={x.t} />}
     </x.c.Reveal>
   );
 }
@@ -270,7 +355,7 @@ function block(token: Token, x: Ctx): ReactNode {
       );
     case "paragraph": {
       const image = figureImage(token.tokens ?? []);
-      return image ? <Figure image={image} x={x} /> : <p className={x.t.p}>{inline(token.tokens, x)}</p>;
+      return image ? <Figure image={image} n={x.nums.get(token)} x={x} /> : <p className={x.t.p}>{inline(token.tokens, x)}</p>;
     }
     case "text":
       // A tight list item's content.
@@ -299,11 +384,17 @@ function blocks(tokens: Token[], x: Ctx): ReactNode {
   return tokens.map((token, i) => <Fragment key={i}>{block(token, x)}</Fragment>);
 }
 
-export function PostBody({ markdown, components, theme, figureSizes }: PostBodyProps) {
+export function PostBody({ markdown, components, theme, figureSizes, cite, citeBox = true }: PostBodyProps) {
   const tokens = marked.lexer(markdown);
   // The page prints the title as its <h1>; a body opening with its own `# Title` would show it twice.
   const first = tokens.findIndex((t) => t.type !== "space");
   if (tokens[first]?.type === "heading" && (tokens[first] as Tokens.Heading).depth === 1) tokens.splice(first, 1);
-  const x: Ctx = { c: { ...defaults, ...components }, t: theme ?? {}, sizes: figureSizes };
-  return <>{blocks(tokens, x)}</>;
+  const t = theme ?? {};
+  const x: Ctx = { c: { ...defaults, ...components }, t, sizes: figureSizes, cite, nums: numberBlocks(tokens, new WeakMap()) };
+  return (
+    <>
+      {blocks(tokens, x)}
+      {cite && citeBox && <CiteThis cite={cite} theme={t} />}
+    </>
+  );
 }
