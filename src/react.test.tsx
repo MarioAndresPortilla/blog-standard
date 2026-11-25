@@ -62,3 +62,78 @@ test("a video figure renders as a muted inline video", () => {
   const html = renderToStaticMarkup(<PostBody markdown={'![Clip](/v/clip.mp4 "cap")'} />);
   assert.match(html, /<video src="\/v\/clip\.mp4" aria-label="Clip"[^>]*muted=""[^>]*playsInline=""|<video[^>]*src="\/v\/clip\.mp4"/);
 });
+
+test("with `cite`, figures and tables are numbered and offer snippets, and the post ends with a cite box", () => {
+  const cite = { url: "https://www.example.com/blog/peels", title: "Peels", site: "Example", date: "2026-11-25" };
+  const body = [
+    "> **Key takeaways**\n> - One.",
+    '![First](/f1.webp "One")',
+    "| A | B |\n| - | - |\n| 1 | 2 |",
+    '> **A callout with a figure**\n>\n> ![Second](/f2.webp "Two")',
+    "![Clip](/v/clip.mp4)",
+  ].join("\n\n");
+  const html = renderToStaticMarkup(<PostBody markdown={body} cite={cite} />);
+  assert.match(html, /<figure id="figure-1">/);
+  assert.match(html, /<figure id="figure-2">/, "a figure inside a callout counts, in reading order");
+  assert.match(html, /<figure id="figure-3"><video/);
+  assert.equal((html.match(/Use this image/g) ?? []).length, 2, "embed code for still images, not the clip");
+  assert.match(html, /<div id="table-1" tabindex="0" role="region"/i);
+  assert.match(html, /<summary>Cite this table<\/summary><pre style="white-space:pre-wrap;word-break:break-all;user-select:all"><code>Source: &lt;a href=&quot;https:\/\/www\.example\.com\/blog\/peels#table-1&quot;&gt;/);
+  assert.match(html, /src=&quot;https:\/\/www\.example\.com\/f1\.webp&quot;/, "embed code uses an absolute image URL");
+  assert.match(html, /<aside aria-label="Cite or link to this article"><details><summary>Cite or link to this article<\/summary>/);
+  assert.match(html, /Example\. \(2026, November 25\)\. Peels\. https:\/\/www\.example\.com\/blog\/peels/);
+  assert.ok(html.trimEnd().endsWith("</aside>"), "the box comes last");
+});
+
+test("without `cite` nothing changes; citeBox={false} leaves the box to the site", () => {
+  const plain = renderToStaticMarkup(<PostBody markdown={"![x](/a.webp)\n\n| A |\n| - |\n| 1 |"} />);
+  assert.doesNotMatch(plain, /id="figure-|id="table-|<details|<aside/);
+  const cite = { url: "https://x.com/p", title: "P", site: "X" };
+  const noBox = renderToStaticMarkup(<PostBody markdown="![x](/a.webp)" cite={cite} citeBox={false} />);
+  assert.match(noBox, /Use this image/);
+  assert.doesNotMatch(noBox, /<aside/);
+});
+
+test("labels can be translated", () => {
+  const cite = { url: "https://x.com/p", title: "P", site: "X", labels: { image: "Usar esta imagen", article: "Citar este artículo" } };
+  const html = renderToStaticMarkup(<PostBody markdown="![x](/a.webp)" cite={cite} />);
+  assert.match(html, /<summary>Usar esta imagen<\/summary>/);
+  assert.match(html, /aria-label="Citar este artículo"/);
+});
+
+test("`sections` hands the site each ## section, numbered across the whole post", () => {
+  const cite = { url: "https://x.com/p", title: "P", site: "X" };
+  const md = "Intro line.\n\n![a](/a.webp)\n\n## **Levels** to watch\n\n![b](/b.webp)\n\n| A |\n| - |\n| 1 |\n\n## Second\n\n![c](/c.webp)";
+  const seen: { index: number; text: string }[] = [];
+  const html = renderToStaticMarkup(
+    <PostBody
+      markdown={md}
+      cite={cite}
+      sections={({ index, heading, headingText, children }) => {
+        seen.push({ index, text: headingText });
+        return (
+          <section data-i={index}>
+            {heading}
+            {children}
+          </section>
+        );
+      }}
+    />,
+  );
+  assert.deepEqual(seen, [
+    { index: 0, text: "" },
+    { index: 1, text: "Levels to watch" },
+    { index: 2, text: "Second" },
+  ]);
+  assert.match(html, /<section data-i="0"><p>Intro line\.<\/p><figure id="figure-1">/);
+  assert.match(html, /<section data-i="1"><h2><strong>Levels<\/strong> to watch<\/h2><figure id="figure-2">/);
+  assert.match(html, /<div id="table-1"/);
+  assert.match(html, /<section data-i="2"><h2>Second<\/h2><figure id="figure-3">/);
+  assert.ok(html.trimEnd().endsWith("</aside>"), "the cite box follows the last section");
+});
+
+test("`sections` skips an empty intro", () => {
+  const seen: number[] = [];
+  renderToStaticMarkup(<PostBody markdown={"## Only\n\nText."} sections={({ index, children }) => (seen.push(index), <div>{children}</div>)} />);
+  assert.deepEqual(seen, [1]);
+});

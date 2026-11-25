@@ -77,6 +77,35 @@ import { Link } from "@/i18n/navigation";
 />
 ```
 
+**Make the post easy to cite and embed** (it's how posts earn links): pass
+the post's canonical URL, title and site name as `cite`.
+
+```tsx
+<PostBody
+  markdown={post.markdown}
+  cite={{ url: `https://www.example.com/blog/${post.slug}`, title: post.title, site: "Example", date: post.date }}
+  theme={{ embed: "mt-2 text-sm", embedSummary: "cursor-pointer text-slate-500", embedCode: "mt-2 rounded bg-slate-50 p-3 text-xs", cite: "mt-12 border-t pt-6" }}
+/>
+```
+
+Each figure gets an id (`#figure-1`, …) and a collapsed **Use this image**
+snippet: embed code with the image, linked back to that figure, and a credit
+line. Each table gets an id (`#table-1`, …) and a **Cite this table** source
+line. The post ends with **Cite or link to this article**: an HTML link and
+an APA-style citation (dated in `cite.locale`, e.g. `"es"`). Every snippet is plain text a reader selects with one
+click (no script). Translate the words with `cite.labels`; `citeBox={false}`
+leaves out the end box so the page can place `<CiteThis cite={…} />` itself.
+The snippet builders (`imageEmbed`, `tableCredit`, `articleLink`, `citation`)
+are exported from the main entry for pages outside `PostBody`.
+
+**Draw the post in sections** (e.g. a collapsible card per `##`): pass
+`sections={({ index, heading, headingText, children }) => …}`. It's called for
+the blocks before the first heading (index 0, `heading` null; skipped when
+empty) and once per heading, with the heading rendered as the post would
+render it. Figures and tables are numbered across the whole post, so ids and
+snippets stay unique; the cite box follows the last section. Don't render
+each section through its own `PostBody`: numbering would restart at 1.
+
 **Read posts:**
 
 ```ts
