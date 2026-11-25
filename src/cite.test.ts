@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { absoluteUrl, anchorUrl, articleLink, citation, escapeHtml, imageEmbed, tableCredit, type PostCite } from "./cite";
+import { absoluteUrl, anchorUrl, articleLink, citation, escapeAttr, escapeHtml, imageEmbed, tableCredit, type PostCite } from "./cite";
 
 const cite: PostCite = {
   url: "https://www.example.com/blog/peels",
@@ -9,9 +9,11 @@ const cite: PostCite = {
   date: "2026-11-25",
 };
 
-test("every value in a snippet is escaped", () => {
-  assert.equal(escapeHtml(`<a href="x">'&'</a>`), "&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;");
-  assert.equal(articleLink(cite), '<a href="https://www.example.com/blog/peels">Peels &quot;light&quot; &amp; deep &lt;guide&gt;</a>');
+test("every value in a snippet is escaped, and an apostrophe stays readable", () => {
+  assert.equal(escapeHtml(`<a href="x">'&'</a>`), `&lt;a href="x"&gt;'&amp;'&lt;/a&gt;`);
+  assert.equal(escapeAttr(`"x" & 'y'`), `&quot;x&quot; &amp; 'y'`);
+  assert.equal(articleLink(cite), '<a href="https://www.example.com/blog/peels">Peels "light" &amp; deep &lt;guide&gt;</a>');
+  assert.equal(articleLink({ ...cite, title: "You're booked" }), '<a href="https://www.example.com/blog/peels">You\'re booked</a>');
 });
 
 test("an image embed links the figure back to the post, with an absolute src and a credit", () => {
@@ -19,7 +21,7 @@ test("an image embed links the figure back to the post, with an absolute src and
   assert.equal(
     html,
     '<a href="https://www.example.com/blog/peels#figure-2"><img src="https://www.example.com/images/blog/peels/figure-2.webp" alt="A &quot;peel&quot;" width="768" loading="lazy"></a>' +
-      '<br>Source: <a href="https://www.example.com/blog/peels#figure-2">Peels &quot;light&quot; &amp; deep &lt;guide&gt;</a> — Example Skin',
+      '<br>Source: <a href="https://www.example.com/blog/peels#figure-2">Peels "light" &amp; deep &lt;guide&gt;</a> — Example Skin',
   );
   assert.match(imageEmbed(cite, { src: "https://cdn.example.net/a.webp", alt: "", n: 1 }), /src="https:\/\/cdn\.example\.net\/a\.webp"/, "an absolute src is kept");
 });

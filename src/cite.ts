@@ -4,7 +4,8 @@
 // data earn links from the sites that reuse them.
 //
 // Pure strings, no React, so the renderer (react.tsx) and any site page can
-// use them. Every value that goes into a snippet's HTML is escaped here.
+// use them. Every value that goes into a snippet's HTML is escaped here: text for content,
+// attribute values for a double-quoted attribute. Apostrophes are left as typed.
 
 export interface CiteLabels {
   /** Under each figure: "Use this image". */
@@ -47,11 +48,14 @@ export interface PostCite {
   labels?: Partial<CiteLabels>;
 }
 
-const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-
-/** Escapes text for HTML content or a quoted attribute. */
+/** Escapes text for HTML content: `&`, `<`, `>`. Quotes stay as typed, so a copied title reads "You're", not "You&#39;re". */
 export function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Escapes a value for a double-quoted HTML attribute: content escaping plus `"`. */
+export function escapeAttr(text: string): string {
+  return escapeHtml(text).replace(/"/g, "&quot;");
 }
 
 /** `href` resolved against `base` (a relative image path becomes absolute); `href` itself if either is unusable. */
@@ -78,7 +82,7 @@ export function citeLabels(cite: PostCite): CiteLabels {
 /** The credit line every snippet ends with: `Source: <a href="…">Title</a> — Site`. */
 function credit(cite: PostCite, href: string): string {
   const labels = citeLabels(cite);
-  return `${escapeHtml(labels.source)}: <a href="${escapeHtml(href)}">${escapeHtml(cite.title)}</a> — ${escapeHtml(cite.site)}`;
+  return `${escapeHtml(labels.source)}: <a href="${escapeAttr(href)}">${escapeHtml(cite.title)}</a> — ${escapeHtml(cite.site)}`;
 }
 
 /** Embed code for figure `n`: the image, linked to the figure in the post, and the credit. */
@@ -86,7 +90,7 @@ export function imageEmbed(cite: PostCite, image: { src: string; alt: string; n:
   const href = anchorUrl(cite, figureId(image.n));
   const src = absoluteUrl(image.src, cite.url);
   return (
-    `<a href="${escapeHtml(href)}"><img src="${escapeHtml(src)}" alt="${escapeHtml(image.alt)}" width="768" loading="lazy"></a>` +
+    `<a href="${escapeAttr(href)}"><img src="${escapeAttr(src)}" alt="${escapeAttr(image.alt)}" width="768" loading="lazy"></a>` +
     `<br>${credit(cite, href)}`
   );
 }
@@ -98,7 +102,7 @@ export function tableCredit(cite: PostCite, n: number): string {
 
 /** A plain HTML link to the post. */
 export function articleLink(cite: PostCite): string {
-  return `<a href="${escapeHtml(cite.url)}">${escapeHtml(cite.title)}</a>`;
+  return `<a href="${escapeAttr(cite.url)}">${escapeHtml(cite.title)}</a>`;
 }
 
 /**
