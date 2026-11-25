@@ -98,6 +98,14 @@ leaves out the end box so the page can place `<CiteThis cite={…} />` itself.
 The snippet builders (`imageEmbed`, `tableCredit`, `articleLink`, `citation`)
 are exported from the main entry for pages outside `PostBody`.
 
+**Draw the post in sections** (e.g. a collapsible card per `##`): pass
+`sections={({ index, heading, headingText, children }) => …}`. It's called for
+the blocks before the first heading (index 0, `heading` null; skipped when
+empty) and once per heading, with the heading rendered as the post would
+render it. Figures and tables are numbered across the whole post, so ids and
+snippets stay unique; the cite box follows the last section. Don't render
+each section through its own `PostBody`: numbering would restart at 1.
+
 **Read posts:**
 
 ```ts

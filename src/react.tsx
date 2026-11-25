@@ -104,6 +104,26 @@ export interface PostBodyProps {
   cite?: PostCite;
   /** With `cite`: false leaves out the box at the end (the site places <CiteThis> itself). Default true. */
   citeBox?: boolean;
+  /**
+   * Render the post in sections, split at each `##` (e.g. as collapsible
+   * cards): called once for the blocks before the first heading (index 0,
+   * heading null; skipped when there are none) and once per heading. Figures
+   * and tables are numbered across the whole post, so ids and snippets stay
+   * unique whichever way the sections are drawn. The cite box comes after
+   * the last section.
+   */
+  sections?: (section: PostSection) => ReactNode;
+}
+
+export interface PostSection {
+  /** 0 for the blocks before the first `##`, then 1, 2, … */
+  index: number;
+  /** The heading as the post would render it (an <h2> with `theme.h2`), or null before the first. */
+  heading: ReactNode | null;
+  /** The heading's plain text, for a site's own checks ("" before the first). */
+  headingText: string;
+  /** The section's blocks, rendered. */
+  children: ReactNode;
 }
 
 // marked leaves entities like `&amp;` in text for its own HTML output; React would print them literally.
@@ -380,20 +400,51 @@ function block(token: Token, x: Ctx): ReactNode {
   }
 }
 
+/** A heading's words without their markdown: **Levels** → "Levels". */
+function plainText(tokens: Token[] | undefined): string {
+  return (tokens ?? [])
+    .map((t) => ("tokens" in t && t.tokens ? plainText(t.tokens) : "text" in t ? decodeEntities(String(t.text)) : ""))
+    .join("");
+}
+
+/** The post's blocks grouped at each `##` (a `#` past the first counts too: both render as <h2>). */
+function splitAtHeadings(tokens: Token[]): { heading: Tokens.Heading | null; tokens: Token[] }[] {
+  const groups: { heading: Tokens.Heading | null; tokens: Token[] }[] = [{ heading: null, tokens: [] }];
+  for (const token of tokens) {
+    if (token.type === "heading" && (token as Tokens.Heading).depth <= 2) groups.push({ heading: token as Tokens.Heading, tokens: [] });
+    else groups[groups.length - 1].tokens.push(token);
+  }
+  return groups;
+}
+
 function blocks(tokens: Token[], x: Ctx): ReactNode {
   return tokens.map((token, i) => <Fragment key={i}>{block(token, x)}</Fragment>);
 }
 
-export function PostBody({ markdown, components, theme, figureSizes, cite, citeBox = true }: PostBodyProps) {
+export function PostBody({ markdown, components, theme, figureSizes, cite, citeBox = true, sections }: PostBodyProps) {
   const tokens = marked.lexer(markdown);
   // The page prints the title as its <h1>; a body opening with its own `# Title` would show it twice.
   const first = tokens.findIndex((t) => t.type !== "space");
   if (tokens[first]?.type === "heading" && (tokens[first] as Tokens.Heading).depth === 1) tokens.splice(first, 1);
   const t = theme ?? {};
   const x: Ctx = { c: { ...defaults, ...components }, t, sizes: figureSizes, cite, nums: numberBlocks(tokens, new WeakMap()) };
+  const body = sections
+    ? splitAtHeadings(tokens).map((group, index) =>
+        group.heading === null && !group.tokens.some((tk) => tk.type !== "space") ? null : (
+          <Fragment key={index}>
+            {sections({
+              index,
+              heading: group.heading ? block(group.heading, x) : null,
+              headingText: group.heading ? plainText(group.heading.tokens) : "",
+              children: blocks(group.tokens, x),
+            })}
+          </Fragment>
+        ),
+      )
+    : blocks(tokens, x);
   return (
     <>
-      {blocks(tokens, x)}
+      {body}
       {cite && citeBox && <CiteThis cite={cite} theme={t} />}
     </>
   );

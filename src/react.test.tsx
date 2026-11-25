@@ -100,3 +100,40 @@ test("labels can be translated", () => {
   assert.match(html, /<summary>Usar esta imagen<\/summary>/);
   assert.match(html, /aria-label="Citar este artículo"/);
 });
+
+test("`sections` hands the site each ## section, numbered across the whole post", () => {
+  const cite = { url: "https://x.com/p", title: "P", site: "X" };
+  const md = "Intro line.\n\n![a](/a.webp)\n\n## **Levels** to watch\n\n![b](/b.webp)\n\n| A |\n| - |\n| 1 |\n\n## Second\n\n![c](/c.webp)";
+  const seen: { index: number; text: string }[] = [];
+  const html = renderToStaticMarkup(
+    <PostBody
+      markdown={md}
+      cite={cite}
+      sections={({ index, heading, headingText, children }) => {
+        seen.push({ index, text: headingText });
+        return (
+          <section data-i={index}>
+            {heading}
+            {children}
+          </section>
+        );
+      }}
+    />,
+  );
+  assert.deepEqual(seen, [
+    { index: 0, text: "" },
+    { index: 1, text: "Levels to watch" },
+    { index: 2, text: "Second" },
+  ]);
+  assert.match(html, /<section data-i="0"><p>Intro line\.<\/p><figure id="figure-1">/);
+  assert.match(html, /<section data-i="1"><h2><strong>Levels<\/strong> to watch<\/h2><figure id="figure-2">/);
+  assert.match(html, /<div id="table-1"/);
+  assert.match(html, /<section data-i="2"><h2>Second<\/h2><figure id="figure-3">/);
+  assert.ok(html.trimEnd().endsWith("</aside>"), "the cite box follows the last section");
+});
+
+test("`sections` skips an empty intro", () => {
+  const seen: number[] = [];
+  renderToStaticMarkup(<PostBody markdown={"## Only\n\nText."} sections={({ index, children }) => (seen.push(index), <div>{children}</div>)} />);
+  assert.deepEqual(seen, [1]);
+});
