@@ -41,6 +41,8 @@ export interface PostCite {
   date?: string;
   /** Who to credit as author. Default: the site. */
   author?: string;
+  /** The page's language, for the citation's date: "es" → "2026, 18 de noviembre". Default "en-US". */
+  locale?: string;
   /** Translated or reworded labels. */
   labels?: Partial<CiteLabels>;
 }
@@ -99,15 +101,25 @@ export function articleLink(cite: PostCite): string {
   return `<a href="${escapeHtml(cite.url)}">${escapeHtml(cite.title)}</a>`;
 }
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-/** "2026, November 25" from "2026-11-25" (or a timestamp on that day); null when it isn't a date. */
-function citeDate(date: string | undefined): string | null {
+/**
+ * "2026, November 25" from "2026-11-25" (or a timestamp on that day), the
+ * day and month in the page's language ("2026, 18 de noviembre" in "es");
+ * null when it isn't a real date. Read in UTC, so the day never shifts.
+ */
+function citeDate(date: string | undefined, locale = "en-US"): string | null {
   const m = date?.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return null;
-  const month = MONTHS[Number(m[2]) - 1];
-  const day = Number(m[3]);
-  return month && day >= 1 && day <= 31 ? `${m[1]}, ${month} ${day}` : null;
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const at = new Date(Date.UTC(year, month - 1, day));
+  if (at.getUTCMonth() !== month - 1 || at.getUTCDate() !== day) return null;
+  const opts = { month: "long", day: "numeric", timeZone: "UTC" } as const;
+  let dayMonth: string;
+  try {
+    dayMonth = new Intl.DateTimeFormat(locale, opts).format(at);
+  } catch {
+    dayMonth = new Intl.DateTimeFormat("en-US", opts).format(at);
+  }
+  return `${m[1]}, ${dayMonth}`;
 }
 
 /**
@@ -117,7 +129,7 @@ function citeDate(date: string | undefined): string | null {
  */
 export function citation(cite: PostCite): string {
   const author = cite.author?.trim() || cite.site;
-  const when = citeDate(cite.date) ?? "n.d.";
+  const when = citeDate(cite.date, cite.locale) ?? "n.d.";
   const site = author === cite.site ? "" : ` ${cite.site}.`;
   const title = /[.?!]$/.test(cite.title.trim()) ? cite.title.trim() : `${cite.title.trim()}.`;
   return `${author}. (${when}). ${title}${site} ${cite.url}`;

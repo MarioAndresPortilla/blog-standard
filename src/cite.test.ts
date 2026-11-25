@@ -42,4 +42,10 @@ test("the citation names the site once, dates the day, and survives a missing da
   );
   assert.match(citation({ ...cite, date: undefined }), /\(n\.d\.\)/);
   assert.match(citation({ ...cite, date: "soon" }), /\(n\.d\.\)/);
+  assert.match(citation({ ...cite, date: "2026-02-30" }), /\(n\.d\.\)/, "not a real day");
+});
+
+test("the citation's date follows the page's language", () => {
+  assert.match(citation({ ...cite, locale: "es" }), /^Example Skin\. \(2026, 25 de noviembre\)\./);
+  assert.match(citation({ ...cite, locale: "not a locale!" }), /\(2026, November 25\)/, "a bad locale falls back to English");
 });

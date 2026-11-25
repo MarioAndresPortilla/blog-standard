@@ -92,7 +92,7 @@ Each figure gets an id (`#figure-1`, …) and a collapsed **Use this image**
 snippet: embed code with the image, linked back to that figure, and a credit
 line. Each table gets an id (`#table-1`, …) and a **Cite this table** source
 line. The post ends with **Cite or link to this article**: an HTML link and
-an APA-style citation. Every snippet is plain text a reader selects with one
+an APA-style citation (dated in `cite.locale`, e.g. `"es"`). Every snippet is plain text a reader selects with one
 click (no script). Translate the words with `cite.labels`; `citeBox={false}`
 leaves out the end box so the page can place `<CiteThis cite={…} />` itself.
 The snippet builders (`imageEmbed`, `tableCredit`, `articleLink`, `citation`)
